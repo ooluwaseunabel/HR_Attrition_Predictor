@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 
-# 1. DEFINE PREPROCESSING FUNCTION (MUST BE IDENTICAL TO TRAINING)
+# 1. DEFINE PREPROCESSING FUNCTION
 def preprocess_data(df):
     df = df.copy()
     if 'Attrition' in df.columns and df['Attrition'].dtype == 'object':
@@ -28,19 +28,25 @@ def preprocess_data(df):
     return X, y, preprocessor
 
 # 2. GLOBAL INJECTION FIX FOR PICKLE
-# This ensures joblib finds the function when it looks in the __main__ module
 import __main__
 setattr(__main__, 'preprocess_data', preprocess_data)
 sys.modules['__main__'].preprocess_data = preprocess_data
 
-# 3. RESOURCE LOADING
+# 3. RESOURCE LOADING WITH ABSOLUTE PATHS
 def load_resources():
-    base_path = os.path.dirname(__file__)
+    # Get the directory where app.py is located
+    base_path = os.path.dirname(os.path.abspath(__file__))
     model_dir = os.path.join(base_path, 'models')
+    
     if not os.path.exists(model_dir):
+        st.error(f"Models directory not found at: {model_dir}")
         return None
+        
     files = [f for f in os.listdir(model_dir) if f.endswith('.pkl')]
-    if not files: return None
+    if not files:
+        st.error(f"No model files found in: {model_dir}")
+        return None
+        
     latest_file = sorted(files)[-1]
     model_path = os.path.join(model_dir, latest_file)
     return joblib.load(model_path)
