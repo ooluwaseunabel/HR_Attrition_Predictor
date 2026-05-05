@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 
-# 1. Define Preprocessing & Pickle Fix
+# 1. DEFINE PREPROCESSING FUNCTION (MUST BE IDENTICAL TO TRAINING)
 def preprocess_data(df):
     df = df.copy()
     if 'Attrition' in df.columns and df['Attrition'].dtype == 'object':
@@ -27,32 +27,27 @@ def preprocess_data(df):
     ])
     return X, y, preprocessor
 
+# 2. GLOBAL INJECTION FIX FOR PICKLE
+# This ensures joblib finds the function when it looks in the __main__ module
 import __main__
-__main__.preprocess_data = preprocess_data
+setattr(__main__, 'preprocess_data', preprocess_data)
 sys.modules['__main__'].preprocess_data = preprocess_data
 
-# 2. Model & Reference Data Loading with Absolute Paths
+# 3. RESOURCE LOADING
 def load_resources():
-    # Get absolute path to the directory containing app.py
     base_path = os.path.dirname(__file__)
     model_dir = os.path.join(base_path, 'models')
-    
     if not os.path.exists(model_dir):
-        st.error(f"Models directory not found at {model_dir}")
         return None
-        
     files = [f for f in os.listdir(model_dir) if f.endswith('.pkl')]
-    if not files:
-        st.error("No .pkl files found in models directory.")
-        return None
-        
+    if not files: return None
     latest_file = sorted(files)[-1]
     model_path = os.path.join(model_dir, latest_file)
     return joblib.load(model_path)
 
 model = load_resources()
 
-# 3. Streamlit UI
+# 4. STREAMLIT UI
 st.set_page_config(page_title="HR Attrition Predictor", layout="wide")
 st.title("Employee Attrition Risk Predictor")
 
@@ -85,16 +80,6 @@ if model is not None:
 
     with tab2:
         st.subheader("Upload Data for Analysis")
-        expected_columns = ['Age', 'BusinessTravel', 'DailyRate', 'DistanceFromHome', 'Education', 'EducationField', 'EnvironmentSatisfaction', 'Gender', 'HourlyRate', 'JobInvolvement', 'JobRole', 'JobSatisfaction', 'MaritalStatus', 'MonthlyIncome', 'MonthlyRate', 'NumCompaniesWorked', 'OverTime', 'PercentSalaryHike', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 'TrainingTimesLastYear', 'WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 'YearsSinceLastPromotion']
-        template_df = pd.DataFrame(columns=expected_columns)
-        
-        st.download_button(
-            label="Download CSV Template",
-            data=template_df.to_csv(index=False),
-            file_name="hr_attrition_template.csv",
-            mime="text/csv"
-        )
-
         uploaded_file = st.file_uploader("Choose a CSV file", type='csv')
         if uploaded_file is not None:
             data = pd.read_csv(uploaded_file)
