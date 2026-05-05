@@ -3,10 +3,11 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
+import sys
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 
-# 1. Define the preprocessing function inside app.py so joblib can find it
+# 1. Define the preprocessing function
 def preprocess_data(df):
     df = df.copy()
     if 'Attrition' in df.columns and df['Attrition'].dtype == 'object':
@@ -29,6 +30,10 @@ def preprocess_data(df):
         ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_cols)
     ])
     return X, y, preprocessor
+
+# FIX: Manually inject the function into the __main__ module for joblib/pickle
+import __main__
+__main__.preprocess_data = preprocess_data
 
 # 2. Load the most recent model
 def load_latest_model():
@@ -56,7 +61,6 @@ if uploaded_file is not None:
 
     if st.button("Predict Attrition"):
         if model is not None:
-            # The model pipeline includes the preprocessor, so we pass raw data
             predictions = model.predict(data)
             probs = model.predict_proba(data)[:, 1]
             
@@ -67,4 +71,4 @@ if uploaded_file is not None:
             st.write("### Prediction Results")
             st.dataframe(results[['Attrition_Prediction', 'Attrition_Probability']])
         else:
-            st.error("Model not found. Please check the 'models' directory.")
+            st.error("Model not found.")
