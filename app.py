@@ -7,7 +7,7 @@ import sys
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 
-# 1. Define the preprocessing function
+# 1. Define the preprocessing logic used during training
 def preprocess_data(df):
     df = df.copy()
     if 'Attrition' in df.columns and df['Attrition'].dtype == 'object':
@@ -31,11 +31,12 @@ def preprocess_data(df):
     ])
     return X, y, preprocessor
 
-# FIX: Manually inject the function into the __main__ module for joblib/pickle
+# 2. CRITICAL FIX: Map the function into the expected module for joblib/pickle
 import __main__
 __main__.preprocess_data = preprocess_data
+sys.modules['__main__'].preprocess_data = preprocess_data
 
-# 2. Load the most recent model
+# 3. Model Loading Logic
 def load_latest_model():
     model_dir = 'models/'
     if not os.path.exists(model_dir):
@@ -48,27 +49,27 @@ def load_latest_model():
 
 model = load_latest_model()
 
-# 3. App Interface
+# 4. Streamlit UI
 st.title("HR Employee Attrition Predictor")
-st.write("Upload employee data to predict attrition risk.")
+st.write("Upload employee data (CSV) to predict attrition risk.")
 
-uploaded_file = st.file_uploader("Upload Employee Data CSV", type=['csv'])
+uploaded_file = st.file_uploader("Choose a CSV file", type='csv')
 
 if uploaded_file is not None:
     data = pd.read_csv(uploaded_file)
-    st.write("Data Preview:")
-    st.dataframe(data.head())
+    st.subheader("Data Preview")
+    st.write(data.head())
 
-    if st.button("Predict Attrition"):
-        if model is not None:
+    if st.button("Run Prediction"):
+        if model:
             predictions = model.predict(data)
             probs = model.predict_proba(data)[:, 1]
             
-            results = data.copy()
-            results['Attrition_Prediction'] = ['Yes' if p == 1 else 'No' for p in predictions]
-            results['Attrition_Probability'] = probs
+            res_df = data.copy()
+            res_df['Prediction'] = ['Yes' if p == 1 else 'No' for p in predictions]
+            res_df['Probability'] = probs
             
-            st.write("### Prediction Results")
-            st.dataframe(results[['Attrition_Prediction', 'Attrition_Probability']])
+            st.subheader("Results")
+            st.write(res_df[['Prediction', 'Probability']].head(20))
         else:
-            st.error("Model not found.")
+            st.error("Model could not be loaded.")
