@@ -12,7 +12,8 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 
 # 1. DATABASE CONFIGURATION
-DB_URI = "postgresql://postgres@localhost:5432/hr_db"
+# URI updated to include credentials for the app
+DB_URI = "postgresql://postgres:postgres@localhost:5432/hr_db"
 engine = create_engine(DB_URI)
 
 def save_to_db(df):
@@ -65,19 +66,17 @@ tab1, tab2 = st.tabs(["Single Prediction", "Batch Prediction (CSV)"])
 if model is not None:
     with tab1:
         st.subheader("Quick Prediction")
-        # ... (Simplified input for example brevity, keeping same structure)
         overtime = st.selectbox("Overtime", ["Yes", "No"])
         income = st.number_input("Monthly Income", 1000, 20000, 5000)
-        
+
         if st.button("Predict and Save"):
             input_dict = {f: 0 for f in ['Age', 'DailyRate', 'DistanceFromHome', 'Education', 'EnvironmentSatisfaction', 'HourlyRate', 'JobInvolvement', 'JobSatisfaction', 'MonthlyIncome', 'MonthlyRate', 'NumCompaniesWorked', 'PercentSalaryHike', 'RelationshipSatisfaction', 'StockOptionLevel', 'TotalWorkingYears', 'TrainingTimesLastYear', 'WorkLifeBalance', 'YearsAtCompany', 'YearsInCurrentRole', 'YearsSinceLastPromotion']}
             input_dict.update({'BusinessTravel': 'Travel_Rarely', 'EducationField': 'Life Sciences', 'Gender': 'Male', 'JobRole': 'Sales Executive', 'MaritalStatus': 'Single', 'OverTime': overtime, 'MonthlyIncome': income})
             single_df = pd.DataFrame([input_dict])
-            
+
             prob = model.predict_proba(single_df)[0][1]
             single_df['Attrition_Probability'] = prob
-            
-            # Save to Database
+
             if save_to_db(single_df):
                 st.success(f"Prediction ({prob:.2%}) saved to PostgreSQL!")
 
