@@ -1,8 +1,6 @@
-
 streamlit
 pandas==2.2.2
 scikit-learn==1.6.1
-fg-data-profiling==4.19.1 # Ensure fg-data-profiling version
 imbalanced-learn==0.14.1
 shap==0.51.0
 matplotlib==3.10.0
