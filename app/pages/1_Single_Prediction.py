@@ -1,6 +1,15 @@
-
 import streamlit as st
 import pandas as pd
+import sys
+import os
+
+# --- SYSTEM PATH FIX ---
+current_dir = os.path.dirname(__file__)
+project_root = os.path.abspath(os.path.join(current_dir, "../../"))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+# -----------------------
+
 from src.predict import predict_batch, numerical_features_dict, categorical_features_dict
 from src.db import save_to_db
 
@@ -41,4 +50,3 @@ if st.button("Predict and Save"): # Moved button below all inputs
             st.error("Failed to save prediction to database.")
     except ValueError as e:
         st.error(f"Prediction Error: {e}")
-
