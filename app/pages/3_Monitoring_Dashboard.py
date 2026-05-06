@@ -1,10 +1,20 @@
-
 import streamlit as st
 import pandas as pd
+import sys
+import os
+
+# --- SYSTEM PATH FIX ---
+# This ensures the 'app/pages' scripts can find the 'src' folder in the root directory
+current_dir = os.path.dirname(__file__)
+project_root = os.path.abspath(os.path.join(current_dir, "../../"))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+# -----------------------
+
 from src.db import fetch_predictions
 
-st.set_page_config(page_title="Monitoring Dashboard", layout="wide")
-st.title("Monitoring Dashboard")
+st.set_page_config(page_title="HR Monitoring Dashboard", layout="wide")
+st.title("HR Monitoring Dashboard")
 
 df = fetch_predictions()
 
@@ -38,4 +48,3 @@ if not df.empty:
         st.info("No 'actual_attrition' column found for live accuracy calculation.")
 else:
     st.warning("No predictions logged yet. Make some predictions to see the dashboard!")
-
