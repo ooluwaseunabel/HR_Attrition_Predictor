@@ -35,8 +35,8 @@ if st.button("Predict and Save"): # Moved button below all inputs
         prob = result_df['Attrition_Probability'].iloc[0]
 
         if save_to_db(result_df): # Pass the dataframe with predictions to save
-            st.success(f"Prediction: {prob:.2%}
-Result saved to PostgreSQL!")
+            st.success(f"Prediction: {prob:.2%}")
+            st.success("Result saved to PostgreSQL!")
         else:
             st.error("Failed to save prediction to database.")
     except ValueError as e:
