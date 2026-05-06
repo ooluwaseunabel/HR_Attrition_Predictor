@@ -13,7 +13,7 @@ from sklearn.compose import ColumnTransformer
 
 # 1. DATABASE CONFIGURATION
 # URI updated to include credentials for the app
-DB_URI = "postgresql://postgres:postgres@localhost:5432/hr_db"
+DB_URI = st.secrets["SUPABASE_DB_URL"]
 engine = create_engine(DB_URI)
 
 def save_to_db(df):
