@@ -16,37 +16,36 @@ from src.db import save_to_db
 st.set_page_config(page_title="Single Prediction", layout="wide")
 st.title("Single Prediction")
 
-# Prepare input data dictionary
 employee_data = {}
 col1, col2, col3 = st.columns(3)
 cols = [col1, col2, col3]
-col_idx = 0
 
 st.write("### Numerical Features")
+col_idx = 0
 for feature, (min_val, max_val, default_val) in numerical_features_dict.items():
     with cols[col_idx % 3]:
         employee_data[feature] = st.number_input(feature, min_value=min_val, max_value=max_val, value=default_val)
     col_idx += 1
 
 st.write("### Categorical Features")
-col_idx = 0 # Reset column index for categorical features
+col_idx = 0 
 for feature, options in categorical_features_dict.items():
     with cols[col_idx % 3]:
         employee_data[feature] = st.selectbox(feature, options)
     col_idx += 1
 
-if st.button("Predict and Save"): # Moved button below all inputs
+if st.button("Predict and Save"):
     input_df = pd.DataFrame([employee_data])
-
     try:
-        # predict_batch returns the DataFrame with 'Attrition_Probability' and 'prediction' columns
         result_df = predict_batch(input_df)
         prob = result_df['Attrition_Probability'].iloc[0]
 
-        if save_to_db(result_df): # Pass the dataframe with predictions to save
-            st.success(f"Prediction: {prob:.2%}
-Result saved to PostgreSQL!")
+        if save_to_db(result_df):
+            # We use single braces here because it's just a string in Colab
+            # but it will be an f-string in the final .py file.
+            st.success(f"Prediction: {prob:.2%}")
+            st.success("Result saved to PostgreSQL!")
         else:
             st.error("Failed to save prediction to database.")
-    except ValueError as e:
+    except Exception as e:
         st.error(f"Prediction Error: {e}")
