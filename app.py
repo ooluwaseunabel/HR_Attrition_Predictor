@@ -1,7 +1,7 @@
 
 import streamlit as st
 import pandas as pd
-import joblib
+import pickle # Changed from joblib
 import os
 import sys
 import numpy as np
@@ -53,7 +53,7 @@ def load_resources():
     files = [f for f in os.listdir(model_dir) if f.endswith('.pkl')]
     if not files: return None
     latest_file = sorted(files)[-1]
-    return joblib.load(os.path.join(model_dir, latest_file))
+    return pickle.load(open(os.path.join(model_dir, latest_file), 'rb')) # Changed from sio.load
 
 model = load_resources()
 
