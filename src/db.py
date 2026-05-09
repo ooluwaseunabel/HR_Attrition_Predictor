@@ -1,29 +1,36 @@
 import streamlit as st
 from sqlalchemy import create_engine
 import pandas as pd
+import json
 
-# Fetch the Supabase URL from Streamlit secrets
+# Setup Database connection
 DB_URI = st.secrets["SUPABASE_DB_URL"]
 engine = create_engine(DB_URI)
 
 def save_to_db(df):
     """
-    Saves the dataframe to the attrition_predictions table in PostgreSQL.
+    Saves predictions to Supabase. 
+    The 'created_at' column is handled automatically by the DB.
     """
     try:
-        df.to_sql("attrition_predictions", engine, if_exists="append", index=False)
+        df_to_save = df.copy()
+        
+        # Convert SHAP list/array to a JSON string for PostgreSQL JSONB format
+        if 'shap_values' in df_to_save.columns:
+            df_to_save['shap_values'] = df_to_save['shap_values'].apply(
+                lambda x: json.dumps(x.tolist() if hasattr(x, 'tolist') else x)
+            )
+            
+        df_to_save.to_sql("attrition_predictions", engine, if_exists="append", index=False)
         return True
     except Exception as e:
-        st.error(f"Database Error: {e}")
+        st.error(f"Database Save Error: {e}")
         return False
 
 def fetch_predictions():
-    """
-    Fetches all predictions from the database.
-    """
+    """Fetches historical data including the new 'created_at' and 'shap_values' columns."""
     try:
-        df = pd.read_sql_table("attrition_predictions", engine)
-        return df
+        return pd.read_sql_table("attrition_predictions", engine)
     except Exception as e:
-        st.error(f"Error fetching data from database: {e}")
+        st.error(f"Error fetching data: {e}")
         return pd.DataFrame()

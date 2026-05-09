@@ -1,11 +1,13 @@
-
 import streamlit as st
 import pandas as pd
 import sys
 import os
+import json
+import numpy as np
+import matplotlib.pyplot as plt
+import shap
 
 # --- SYSTEM PATH FIX ---
-# This ensures the 'app/pages' scripts can find the 'src' folder in the root directory
 current_dir = os.path.dirname(__file__)
 project_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if project_root not in sys.path:
@@ -13,6 +15,7 @@ if project_root not in sys.path:
 # -----------------------
 
 from src.db import fetch_predictions
+from src.predict import feature_names_for_shap
 
 st.set_page_config(page_title="HR Monitoring Dashboard", layout="wide")
 st.title("HR Monitoring Dashboard")
@@ -20,32 +23,63 @@ st.title("HR Monitoring Dashboard")
 df = fetch_predictions()
 
 if not df.empty:
-    st.subheader("Prediction Distribution")
-    # Ensure 'prediction' column exists before attempting to value_counts
-    if 'prediction' in df.columns:
-        st.bar_chart(df["prediction"].value_counts())
-    else:
-        st.info("No 'prediction' column found in fetched data for distribution.")
+    # --- 1. METRICS ROW ---
+    col1, col2, col3 = st.columns(3)
+    
+    total_preds = len(df)
+    avg_risk = df["Attrition_Probability"].mean()
+    
+    col1.metric("Total Predictions", total_preds)
+    col2.metric("Average Attrition Risk", f"{avg_risk:.2%}")
+    
+    if "actual_attrition" in df.columns:
+        df_acc = df.dropna(subset=["actual_attrition"])
+        if not df_acc.empty:
+            acc = (df_acc["prediction"] == df_acc["actual_attrition"]).mean()
+            col3.metric("Model Accuracy (Live)", f"{acc:.2%}")
 
+    # --- 2. TREND ANALYSIS (Updated for 'created_at') ---
     st.subheader("Average Risk Over Time")
-    # Ensure 'timestamp' and 'Attrition_Probability' columns exist
-    if 'timestamp' in df.columns and 'Attrition_Probability' in df.columns:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        # Group by date to get daily average probability
-        trend = df.groupby(df["timestamp"].dt.date)["Attrition_Probability"].mean()
+    # Updated column name to match Supabase 'created_at'
+    time_col = 'created_at' if 'created_at' in df.columns else 'timestamp'
+    
+    if time_col in df.columns:
+        df[time_col] = pd.to_datetime(df[time_col])
+        trend = df.groupby(df[time_col].dt.date)["Attrition_Probability"].mean()
         st.line_chart(trend)
     else:
-        st.info("Missing 'timestamp' or 'Attrition_Probability' columns for trend analysis.")
+        st.info("Waiting for time-stamped data...")
 
-    # If actuals exist, calculate accuracy
-    if "actual_attrition" in df.columns and 'prediction' in df.columns:
-        df_with_actuals = df.dropna(subset=["actual_attrition"])
-        if not df_with_actuals.empty:
-            accuracy = (df_with_actuals["prediction"] == df_with_actuals["actual_attrition"]).mean()
-            st.metric("Model Accuracy (Live)", f"{accuracy:.2%}")
-        else:
-            st.info("No actual attrition data available for live accuracy calculation.")
+    # --- 3. GLOBAL SHAP INSIGHTS (New!) ---
+    st.subheader("What's Driving Attrition Globally?")
+    
+    if 'shap_values' in df.columns:
+        try:
+            # Parse the JSON strings back into a list of lists
+            shap_list = [json.loads(x) if isinstance(x, str) else x for x in df['shap_values']]
+            all_shap_values = np.array(shap_list)
+
+            with st.expander("Show Global Feature Importance Plot", expanded=True):
+                fig, ax = plt.subplots(figsize=(10, 6))
+                # Create a summary plot (Bar) to show top drivers
+                shap.summary_plot(
+                    all_shap_values, 
+                    feature_names=feature_names_for_shap, 
+                    plot_type="bar", 
+                    show=False
+                )
+                st.pyplot(fig)
+                st.write("This chart averages the SHAP values from all stored predictions to show which factors are most influential across the organization.")
+        except Exception as e:
+            st.error(f"Error processing SHAP values: {e}")
     else:
-        st.info("No 'actual_attrition' column found for live accuracy calculation.")
+        st.info("Make some predictions with SHAP enabled to see global drivers.")
+
+    # --- 4. RAW DATA LOG ---
+    with st.expander("View Raw Prediction Logs"):
+        # We drop shap_values here because the raw JSON is too long for a table
+        display_cols = [c for c in df.columns if c != 'shap_values']
+        st.dataframe(df[display_cols].sort_values(by=time_col, ascending=False))
+
 else:
     st.warning("No predictions logged yet. Make some predictions to see the dashboard!")
