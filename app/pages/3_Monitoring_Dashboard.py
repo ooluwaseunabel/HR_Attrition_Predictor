@@ -44,22 +44,22 @@ if not df.empty:
         trend = df.groupby(df[time_col].dt.date)["Attrition_Probability"].mean()
         st.line_chart(trend)
 
-    # --- 3. GLOBAL SHAP INSIGHTS (Robust Version) ---
+    # --- 3. GLOBAL SHAP INSIGHTS ---
     st.subheader("What's Driving Attrition Globally?")
 
-    if 'shap_values' in df.columns:
+    # FIX: Safety check to ensure the model features loaded properly before mapping SHAP
+    if feature_names_for_shap is None:
+        st.error("Global insights are unavailable because the underlying model file (.pkl) could not be loaded. Please check your models/ folder.")
+    elif 'shap_values' in df.columns:
         try:
             processed_shaps = []
             expected_len = len(feature_names_for_shap)
 
             for x in df['shap_values']:
                 try:
-                    # Decode JSON if it's a string
                     val = json.loads(x) if isinstance(x, str) else x
-                    # Flatten in case it's nested like [[...]]
                     val_flat = np.array(val).flatten()
 
-                    # Only include if length matches current model features
                     if len(val_flat) == expected_len:
                         processed_shaps.append(val_flat)
                 except:
@@ -77,7 +77,7 @@ if not df.empty:
                     )
                     st.pyplot(fig)
             else:
-                st.warning("No valid SHAP values found that match the current model's feature count.")
+                st.warning("No valid SHAP values found matching the current feature set.")
 
         except Exception as e:
             st.error(f"Error processing SHAP values: {e}")
