@@ -8,7 +8,7 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 import shap
 import numpy as np
 
-# Numerical and categorical features configuration dictionaries
+# Numerical and categorical features
 numerical_features_dict = {
     'Age': (18, 60, 30), 'DailyRate': (100, 1500, 800), 'DistanceFromHome': (1, 29, 10),
     'Education': (1, 5, 3), 'EnvironmentSatisfaction': (1, 4, 3), 'HourlyRate': (30, 100, 65),
@@ -37,27 +37,32 @@ def preprocess_data(df):
     return df.drop('Attrition', axis=1) if 'Attrition' in df.columns else df
 
 def load_model_and_explainer():
-    model_dir_full_path = None
-    
-    # 1. Search Chain: Map explicit structural variations across Cloud vs Local deployments
-    possible_roots = [
-        os.getcwd(),                                                 # App workspace root directory
-        os.path.abspath(os.path.join(os.getcwd(), "..")),            # One level up from root
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), # Up relative to src/predict.py
-        "/mount/src/hr_attrition_predictor"                         # Hardcoded production fallback
-    ]
-    
-    for root in possible_roots:
-        test_path = os.path.join(root, 'models')
-        if os.path.exists(test_path) and any(f.endswith('.pkl') for f in os.listdir(test_path)):
-            model_dir_full_path = test_path
-            break
+    try:
+        # Works on Streamlit Cloud
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.abspath(os.path.join(base_path, '..'))
+    except NameError:
+        # Works in Google Colab
+        repo_root = os.getcwd()
 
-    if not model_dir_full_path:
-        print("CRITICAL ERROR: 'models/' directory containing .pkl weights was not resolved.")
+    model_dir_full_path = os.path.join(repo_root, 'models')
+
+    # Multi-path search safety net to catch execution directory mismatches
+    if not os.path.exists(model_dir_full_path):
+        if os.path.exists(os.path.join(os.getcwd(), 'models')):
+            model_dir_full_path = os.path.join(os.getcwd(), 'models')
+        elif os.path.exists(os.path.join(os.getcwd(), '..', 'models')):
+            model_dir_full_path = os.path.abspath(os.path.join(os.getcwd(), '..', 'models'))
+
+    if not os.path.exists(model_dir_full_path):
+        print(f"CRITICAL: Models directory not found. Searched path: {model_dir_full_path}")
         return None, None, None
 
     files = [f for f in os.listdir(model_dir_full_path) if f.endswith('.pkl')]
+    if not files: 
+        print(f"CRITICAL: No .pkl files found in {model_dir_full_path}")
+        return None, None, None
+
     latest_file = sorted(files)[-1]
     model_path = os.path.join(model_dir_full_path, latest_file)
 
@@ -68,12 +73,12 @@ def load_model_and_explainer():
         final_estimator = smote_pipe.named_steps['model']
         preprocessor = smote_pipe.named_steps['preprocessor']
 
-        # Construct target features matrix for SHAP processing
+        # Get feature names for SHAP
         num_names = preprocessor.named_transformers_['num'].get_feature_names_out()
         cat_names = preprocessor.named_transformers_['cat'].get_feature_names_out()
         all_feature_names = np.concatenate([num_names, cat_names])
 
-        # Formulate background training context reference point
+        # Create SHAP explainer
         sample_data = {k: v[2] for k, v in numerical_features_dict.items()}
         sample_data.update({k: v[0] for k, v in categorical_features_dict.items()})
         shap_bg = preprocessor.transform(preprocess_data(pd.DataFrame([sample_data])))
@@ -81,16 +86,15 @@ def load_model_and_explainer():
         explainer = shap.LinearExplainer(final_estimator, shap_bg, feature_names=all_feature_names)
         return smote_pipe, explainer, all_feature_names
     except Exception as e:
-        print(f"Pipeline instantiation runtime error: {e}")
+        print(f"Error loading components: {e}")
         return None, None, None
 
-# Run initial boot assignment configuration
+# Initialize globals
 model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explainer()
 
 def make_prediction(df_input):
     global model_pipeline, shap_explainer, feature_names_for_shap
     
-    # FIX: Lazy loading safety mechanism. If startup failed, retry now on user click!
     if model_pipeline is None:
         model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explainer()
         
@@ -109,23 +113,21 @@ def make_prediction(df_input):
 def predict_batch(df_input):
     global model_pipeline, shap_explainer, feature_names_for_shap
     
-    # FIX: Lazy loading safety mechanism. If startup failed, retry now on user click!
     if model_pipeline is None:
         model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explainer()
         
     if model_pipeline is None:
         raise ValueError("Model not loaded correctly. Please verify your 'models/' folder path.")
 
-    original_input_df = df_input.copy()
     X_processed = preprocess_data(df_input)
-
     probabilities = model_pipeline.predict_proba(X_processed)[:, 1]
     predictions = (probabilities > 0.5).astype(int)
 
-    X_transformed_for_shap = model_pipeline.named_steps['preprocessor'].transform(X_processed)
-    shap_vals = shap_explainer.shap_values(X_transformed_for_shap)
+    # SHAP logic
+    X_transformed = model_pipeline.named_steps['preprocessor'].transform(X_processed)
+    shap_values = shap_explainer.shap_values(X_transformed)
 
-    original_input_df['Attrition_Probability'] = probabilities
-    original_input_df['prediction'] = predictions
-
-    return original_input_df, shap_vals, X_transformed_for_shap
+    df_out = df_input.copy()
+    df_out['Attrition_Probability'] = probabilities
+    df_out['prediction'] = predictions
+    return df_out, shap_values, X_transformed
