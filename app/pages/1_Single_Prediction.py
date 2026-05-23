@@ -41,7 +41,7 @@ if st.button("Predict and Save"):
     try:
         # 1. Run prediction and get SHAP data
         result_df, shap_values, X_transformed_for_shap = predict_batch(input_df)
-        
+
         prob = result_df['Attrition_Probability'].iloc[0]
         prediction = result_df['prediction'].iloc[0]
 
@@ -64,13 +64,13 @@ if st.button("Predict and Save"):
 
         # 4. Display Visualization
         st.subheader("Explanation (SHAP Values)")
-        
+
         shap_values_single = shap_values[0]
         X_single = X_transformed_for_shap[0]
 
         with st.expander("View Detailed SHAP Explanation", expanded=True):
             from src.predict import shap_explainer
-            
+
             fig, ax = plt.subplots(figsize=(10, 6))
             exp = shap.Explanation(
                 values=shap_values_single,

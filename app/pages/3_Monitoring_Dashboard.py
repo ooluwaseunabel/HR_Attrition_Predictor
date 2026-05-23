@@ -29,7 +29,7 @@ if not df.empty:
     avg_risk = df["Attrition_Probability"].mean()
     col1.metric("Total Predictions", total_preds)
     col2.metric("Average Attrition Risk", f"{avg_risk:.2%}")
-    
+
     if "actual_attrition" in df.columns:
         df_acc = df.dropna(subset=["actual_attrition"])
         if not df_acc.empty:
@@ -46,39 +46,39 @@ if not df.empty:
 
     # --- 3. GLOBAL SHAP INSIGHTS (Robust Version) ---
     st.subheader("What's Driving Attrition Globally?")
-    
+
     if 'shap_values' in df.columns:
         try:
             processed_shaps = []
             expected_len = len(feature_names_for_shap)
-            
+
             for x in df['shap_values']:
                 try:
                     # Decode JSON if it's a string
                     val = json.loads(x) if isinstance(x, str) else x
                     # Flatten in case it's nested like [[...]]
                     val_flat = np.array(val).flatten()
-                    
+
                     # Only include if length matches current model features
                     if len(val_flat) == expected_len:
                         processed_shaps.append(val_flat)
                 except:
-                    continue 
+                    continue
 
             if processed_shaps:
                 all_shap_values = np.array(processed_shaps)
                 with st.expander("Show Global Feature Importance Plot", expanded=True):
                     fig, ax = plt.subplots(figsize=(10, 6))
                     shap.summary_plot(
-                        all_shap_values, 
-                        feature_names=feature_names_for_shap, 
-                        plot_type="bar", 
+                        all_shap_values,
+                        feature_names=feature_names_for_shap,
+                        plot_type="bar",
                         show=False
                     )
                     st.pyplot(fig)
             else:
                 st.warning("No valid SHAP values found that match the current model's feature count.")
-                
+
         except Exception as e:
             st.error(f"Error processing SHAP values: {e}")
     else:

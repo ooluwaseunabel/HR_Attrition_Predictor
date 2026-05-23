@@ -9,19 +9,19 @@ engine = create_engine(DB_URI)
 
 def save_to_db(df):
     """
-    Saves predictions to Supabase. 
+    Saves predictions to Supabase.
     Fixes the TypeMismatch by explicitly JSON-encoding the shap_values.
     """
     try:
         df_to_save = df.copy()
-        
+
         # FIX: Convert SHAP values column to a JSON-formatted string
         if 'shap_values' in df_to_save.columns:
             # We convert the list/array to a JSON string so PostgreSQL sees it as JSONB
             df_to_save['shap_values'] = df_to_save['shap_values'].apply(
                 lambda x: json.dumps(x.tolist() if hasattr(x, 'tolist') else x)
             )
-            
+
         df_to_save.to_sql("attrition_predictions", engine, if_exists="append", index=False)
         return True
     except Exception as e:

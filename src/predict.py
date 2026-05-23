@@ -5,8 +5,8 @@ import sys
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
-import shap 
-import numpy as np 
+import shap
+import numpy as np
 
 # Numerical and categorical features
 numerical_features_dict = {
@@ -73,7 +73,7 @@ def load_model_and_explainer():
         sample_data = {k: v[2] for k, v in numerical_features_dict.items()}
         sample_data.update({k: v[0] for k, v in categorical_features_dict.items()})
         shap_bg = preprocessor.transform(preprocess_data(pd.DataFrame([sample_data])))
-        
+
         explainer = shap.LinearExplainer(final_estimator, shap_bg, feature_names=all_feature_names)
         return smote_pipe, explainer, all_feature_names
     except Exception as e:
@@ -86,7 +86,7 @@ model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explaine
 def predict_batch(df_input):
     if model_pipeline is None:
         raise ValueError("Model not loaded correctly.")
-    
+
     X_processed = preprocess_data(df_input)
     probabilities = model_pipeline.predict_proba(X_processed)[:, 1]
     predictions = (probabilities > 0.5).astype(int)

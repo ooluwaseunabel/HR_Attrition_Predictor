@@ -40,6 +40,13 @@ if file:
         if col not in df_uploaded.columns:
             df_uploaded[col] = categorical_features_dict[col][0]
 
+    # --- FIX: FORCE NUMERIC CONVERSION FOR EXCEL FORMATTING QUIRKS ---
+    # We explicitly convert all expected numeric columns to real numerical data types
+    # to bypass the validation 'Column must be numeric' errors caused by spreadsheet objects.
+    for col in numerical_features_dict.keys():
+        if col in df_uploaded.columns:
+            df_uploaded[col] = pd.to_numeric(df_uploaded[col], errors='coerce')
+
     df_processed_for_validation = df_uploaded[EXPECTED_COLUMNS]
     errors = validate_dataframe(df_processed_for_validation)
 
@@ -49,7 +56,7 @@ if file:
     else:
         st.write("### Data Preview (Top 5 Rows)")
         st.dataframe(df_processed_for_validation.head())
-        
+
         if st.button("Run Batch Prediction"):
             try:
                 # 1. Run Prediction and SHAP calculation
@@ -63,7 +70,7 @@ if file:
                 # 3. Save to Database (Handles result, SHAP, and automatic timestamp)
                 if save_to_db(result_df):
                     st.success(f"Successfully processed {len(result_df)} records and logged to Database!")
-                    
+
                     # Display results (excluding the messy shap_values column for the UI)
                     st.write("### Prediction Results")
                     st.dataframe(result_df.drop(columns=['shap_values']).head())
@@ -78,15 +85,15 @@ if file:
                     # 4. Global Insights Visualization
                     st.subheader("Global Feature Importance")
                     st.info("This chart shows which factors contributed most to the overall attrition risk across this entire batch.")
-                    
+
                     with st.expander("View SHAP Summary Plot", expanded=True):
                         fig, ax = plt.subplots(figsize=(10, 6))
                         # Summary plot shows the magnitude of feature importance
                         shap.summary_plot(
-                            shap_values, 
-                            X_transformed_for_shap, 
-                            feature_names=feature_names_for_shap, 
-                            plot_type="bar", 
+                            shap_values,
+                            X_transformed_for_shap,
+                            feature_names=feature_names_for_shap,
+                            plot_type="bar",
                             show=False
                         )
                         st.pyplot(fig)
