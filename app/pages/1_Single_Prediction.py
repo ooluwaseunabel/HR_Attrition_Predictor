@@ -12,7 +12,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 # -----------------------
 
-from src.predict import predict_batch, numerical_features_dict, categorical_features_dict, feature_names_for_shap
+ffrom src.predict import make_prediction, numerical_features_dict, categorical_features_dict, feature_names_for_shap
 from src.db import save_to_db
 
 st.set_page_config(page_title="Single Prediction", layout="wide")

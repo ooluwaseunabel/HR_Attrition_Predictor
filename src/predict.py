@@ -37,7 +37,6 @@ def preprocess_data(df):
     return df.drop('Attrition', axis=1) if 'Attrition' in df.columns else df
 
 def load_model_and_explainer():
-    # --- ENHANCED UNIVERSAL PATH RESOLUTION FIX ---
     try:
         # Works on Streamlit Cloud
         base_path = os.path.dirname(os.path.abspath(__file__))
@@ -94,7 +93,6 @@ def load_model_and_explainer():
 model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explainer()
 
 def make_prediction(df_input):
-    \"\"\"Unified single-row prediction engine with on-the-fly loading safety.\"\"\"
     global model_pipeline, shap_explainer, feature_names_for_shap
     
     if model_pipeline is None:
@@ -113,7 +111,6 @@ def make_prediction(df_input):
     return probabilities, predictions, shap_values
 
 def predict_batch(df_input):
-    \"\"\"Unified batch prediction engine with on-the-fly loading safety.\"\"\"
     global model_pipeline, shap_explainer, feature_names_for_shap
     
     if model_pipeline is None:
