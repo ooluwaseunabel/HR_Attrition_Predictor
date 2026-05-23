@@ -37,7 +37,7 @@ def preprocess_data(df):
     return df.drop('Attrition', axis=1) if 'Attrition' in df.columns else df
 
 def load_model_and_explainer():
-    # --- PATH FIX FOR COLAB VS STREAMLIT ---
+    # --- ENHANCED UNIVERSAL PATH RESOLUTION FIX ---
     try:
         # Works on Streamlit Cloud
         base_path = os.path.dirname(os.path.abspath(__file__))
@@ -48,11 +48,21 @@ def load_model_and_explainer():
 
     model_dir_full_path = os.path.join(repo_root, 'models')
 
+    # Multi-path search safety net to catch execution directory mismatches
     if not os.path.exists(model_dir_full_path):
+        if os.path.exists(os.path.join(os.getcwd(), 'models')):
+            model_dir_full_path = os.path.join(os.getcwd(), 'models')
+        elif os.path.exists(os.path.join(os.getcwd(), '..', 'models')):
+            model_dir_full_path = os.path.abspath(os.path.join(os.getcwd(), '..', 'models'))
+
+    if not os.path.exists(model_dir_full_path):
+        print(f"CRITICAL: Models directory not found. Searched path: {model_dir_full_path}")
         return None, None, None
 
     files = [f for f in os.listdir(model_dir_full_path) if f.endswith('.pkl')]
-    if not files: return None, None, None
+    if not files: 
+        print(f"CRITICAL: No .pkl files found in {model_dir_full_path}")
+        return None, None, None
 
     latest_file = sorted(files)[-1]
     model_path = os.path.join(model_dir_full_path, latest_file)
@@ -77,15 +87,40 @@ def load_model_and_explainer():
         explainer = shap.LinearExplainer(final_estimator, shap_bg, feature_names=all_feature_names)
         return smote_pipe, explainer, all_feature_names
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error loading components: {e}")
         return None, None, None
 
 # Initialize globals
 model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explainer()
 
-def predict_batch(df_input):
+def make_prediction(df_input):
+    \"\"\"Unified single-row prediction engine with on-the-fly loading safety.\"\"\"
+    global model_pipeline, shap_explainer, feature_names_for_shap
+    
     if model_pipeline is None:
-        raise ValueError("Model not loaded correctly.")
+        model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explainer()
+        
+    if model_pipeline is None:
+        raise ValueError("Model not loaded correctly. Please verify your 'models/' folder path.")
+        
+    X_processed = preprocess_data(df_input)
+    probabilities = model_pipeline.predict_proba(X_processed)[:, 1]
+    predictions = (probabilities > 0.5).astype(int)
+
+    X_transformed = model_pipeline.named_steps['preprocessor'].transform(X_processed)
+    shap_values = shap_explainer.shap_values(X_transformed)
+    
+    return probabilities, predictions, shap_values
+
+def predict_batch(df_input):
+    \"\"\"Unified batch prediction engine with on-the-fly loading safety.\"\"\"
+    global model_pipeline, shap_explainer, feature_names_for_shap
+    
+    if model_pipeline is None:
+        model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explainer()
+        
+    if model_pipeline is None:
+        raise ValueError("Model not loaded correctly. Please verify your 'models/' folder path.")
 
     X_processed = preprocess_data(df_input)
     probabilities = model_pipeline.predict_proba(X_processed)[:, 1]
