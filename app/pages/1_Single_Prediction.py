@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import sys
 import os
-import shap
-import matplotlib.pyplot as plt
 
 # --- SYSTEM PATH FIX ---
 current_dir = os.path.dirname(__file__)
@@ -12,74 +10,83 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 # -----------------------
 
-ffrom src.predict import make_prediction, numerical_features_dict, categorical_features_dict, feature_names_for_shap
+from src.predict import make_prediction, numerical_features_dict, categorical_features_dict
 from src.db import save_to_db
 
 st.set_page_config(page_title="Single Prediction", layout="wide")
-st.title("Single Employee Prediction")
+st.title("Single Employee Attrition Prediction")
 
-employee_data = {}
-col1, col2, col3 = st.columns(3)
-cols = [col1, col2, col3]
+st.markdown("Input employee parameters below to calculate their real-time attrition risk score.")
 
-st.write("### Numerical Features")
-col_idx = 0
-for feature, (min_val, max_val, default_val) in numerical_features_dict.items():
-    with cols[col_idx % 3]:
-        employee_data[feature] = st.number_input(feature, min_value=min_val, max_value=max_val, value=default_val)
-    col_idx += 1
+# Group inputs using Streamlit tabs for cleaner layout
+tab1, tab2, tab3 = st.tabs(["Personal Metrics", "Job Details", "Satisfaction & History"])
 
-st.write("### Categorical Features")
-col_idx = 0
-for feature, options in categorical_features_dict.items():
-    with cols[col_idx % 3]:
-        employee_data[feature] = st.selectbox(feature, options)
-    col_idx += 1
+input_data = {}
 
-if st.button("Predict and Save"):
-    input_df = pd.DataFrame([employee_data])
+with tab1:
+    col1, col2 = st.columns(2)
+    with col1:
+        input_data['Age'] = st.slider("Age", *numerical_features_dict['Age'])
+        input_data['Gender'] = st.selectbox("Gender", categorical_features_dict['Gender'])
+        input_data['MaritalStatus'] = st.selectbox("Marital Status", categorical_features_dict['MaritalStatus'])
+    with col2:
+        input_data['DistanceFromHome'] = st.slider("Distance From Home (miles)", *numerical_features_dict['DistanceFromHome'])
+        input_data['Education'] = st.slider("Education Level", *numerical_features_dict['Education'])
+        input_data['EducationField'] = st.selectbox("Education Field", categorical_features_dict['EducationField'])
+
+with tab2:
+    col1, col2 = st.columns(2)
+    with col1:
+        input_data['JobRole'] = st.selectbox("Job Role", categorical_features_dict['JobRole'])
+        input_data['TotalWorkingYears'] = st.slider("Total Working Years", *numerical_features_dict['TotalWorkingYears'])
+        input_data['NumCompaniesWorked'] = st.slider("Number of Companies Worked", *numerical_features_dict['NumCompaniesWorked'])
+    with col2:
+        input_data['MonthlyIncome'] = st.slider("Monthly Income ($)", *numerical_features_dict['MonthlyIncome'])
+        input_data['DailyRate'] = st.slider("Daily Rate ($)", *numerical_features_dict['DailyRate'])
+        input_data['HourlyRate'] = st.slider("Hourly Rate ($)", *numerical_features_dict['HourlyRate'])
+        input_data['MonthlyRate'] = st.slider("Monthly Rate ($)", *numerical_features_dict['MonthlyRate'])
+        input_data['OverTime'] = st.selectbox("Overtime Status", categorical_features_dict['OverTime'])
+
+with tab3:
+    col1, col2 = st.columns(2)
+    with col1:
+        input_data['EnvironmentSatisfaction'] = st.slider("Environment Satisfaction", *numerical_features_dict['EnvironmentSatisfaction'])
+        input_data['JobSatisfaction'] = st.slider("Job Satisfaction", *numerical_features_dict['JobSatisfaction'])
+        input_data['JobInvolvement'] = st.slider("Job Involvement", *numerical_features_dict['JobInvolvement'])
+        input_data['RelationshipSatisfaction'] = st.slider("Relationship Satisfaction", *numerical_features_dict['RelationshipSatisfaction'])
+    with col2:
+        input_data['WorkLifeBalance'] = st.slider("Work-Life Balance", *numerical_features_dict['WorkLifeBalance'])
+        input_data['StockOptionLevel'] = st.slider("Stock Option Level", *numerical_features_dict['StockOptionLevel'])
+        input_data['TrainingTimesLastYear'] = st.slider("Training Times Last Year", *numerical_features_dict['TrainingTimesLastYear'])
+        input_data['YearsAtCompany'] = st.slider("Years At Company", *numerical_features_dict['YearsAtCompany'])
+        input_data['YearsInCurrentRole'] = st.slider("Years In Current Role", *numerical_features_dict['YearsInCurrentRole'])
+        input_data['YearsSinceLastPromotion'] = st.slider("Years Since Last Promotion", *numerical_features_dict['YearsSinceLastPromotion'])
+
+# Run the inference engine
+if st.button("Calculate Risk Profile"):
     try:
-        # 1. Run prediction and get SHAP data
-        result_df, shap_values, X_transformed_for_shap = predict_batch(input_df)
-
-        prob = result_df['Attrition_Probability'].iloc[0]
-        prediction = result_df['prediction'].iloc[0]
-
-        # 2. ATTACH SHAP VALUES FOR DATABASE
-        # We take the first row of SHAP values and store them as a list column
-        # This is what ensures the 'shap_values' column exists when save_to_db is called
-        result_df['shap_values'] = [shap_values[0].tolist()]
-
-        st.subheader("Prediction Result")
-        if prediction == 1:
-            st.error(f"High Attrition Risk (Probability: {prob:.2%})")
+        df_input = pd.DataFrame([input_data])
+        probabilities, predictions, shap_values = make_prediction(df_input)
+        
+        prob_val = probabilities[0]
+        pred_val = predictions[0]
+        
+        st.write("---")
+        if pred_val == 1:
+            st.error(f"**High Risk of Attrition:** The system estimates a **{prob_val:.2%}** probability that this employee will depart.")
         else:
-            st.success(f"Low Attrition Risk (Probability: {prob:.2%})")
-
-        # 3. Save the dataframe (now containing predictions AND shap list)
-        if save_to_db(result_df):
-            st.success("Results and SHAP explanation successfully logged to database.")
+            st.success(f"**Low Risk of Attrition:** The system estimates a **{prob_val:.2%}** probability of departure.")
+            
+        # Format metrics record payload for database entry
+        df_db = df_input.copy()
+        df_db['Attrition_Probability'] = prob_val
+        df_db['prediction'] = int(pred_val)
+        df_db['shap_values'] = [shap_values[0].tolist()]
+        
+        if save_to_db(df_db):
+            st.caption("Prediction metrics cleanly synchronized to remote storage logs.")
         else:
-            st.error("Failed to save results to database.")
-
-        # 4. Display Visualization
-        st.subheader("Explanation (SHAP Values)")
-
-        shap_values_single = shap_values[0]
-        X_single = X_transformed_for_shap[0]
-
-        with st.expander("View Detailed SHAP Explanation", expanded=True):
-            from src.predict import shap_explainer
-
-            fig, ax = plt.subplots(figsize=(10, 6))
-            exp = shap.Explanation(
-                values=shap_values_single,
-                base_values=shap_explainer.expected_value,
-                data=X_single,
-                feature_names=feature_names_for_shap
-            )
-            shap.waterfall_plot(exp, show=False)
-            st.pyplot(fig)
-
+            st.caption("Database communication logging failure.")
+            
     except Exception as e:
-        st.error(f"Prediction Error: {e}")
+        st.error(f"Prediction Pipeline Error: {e}")
