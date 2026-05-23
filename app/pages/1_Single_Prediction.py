@@ -29,6 +29,8 @@ with tab1:
         input_data['Age'] = st.slider("Age", *numerical_features_dict['Age'])
         input_data['Gender'] = st.selectbox("Gender", categorical_features_dict['Gender'])
         input_data['MaritalStatus'] = st.selectbox("Marital Status", categorical_features_dict['MaritalStatus'])
+        # --- FIXED: Added missing BusinessTravel input ---
+        input_data['BusinessTravel'] = st.selectbox("Business Travel Frequency", categorical_features_dict['BusinessTravel'])
     with col2:
         input_data['DistanceFromHome'] = st.slider("Distance From Home (miles)", *numerical_features_dict['DistanceFromHome'])
         input_data['Education'] = st.slider("Education Level", *numerical_features_dict['Education'])
@@ -46,6 +48,8 @@ with tab2:
         input_data['HourlyRate'] = st.slider("Hourly Rate ($)", *numerical_features_dict['HourlyRate'])
         input_data['MonthlyRate'] = st.slider("Monthly Rate ($)", *numerical_features_dict['MonthlyRate'])
         input_data['OverTime'] = st.selectbox("Overtime Status", categorical_features_dict['OverTime'])
+        # --- FIXED: Added missing PercentSalaryHike input ---
+        input_data['PercentSalaryHike'] = st.slider("Percent Salary Hike (%)", *numerical_features_dict['PercentSalaryHike'])
 
 with tab3:
     col1, col2 = st.columns(2)

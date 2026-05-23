@@ -17,7 +17,7 @@ from src.predict import predict_batch, numerical_features_dict, categorical_feat
 from src.db import save_to_db
 
 st.set_page_config(page_title="Batch Prediction", layout="wide")
-st.title("Batch Prediction & Global Insights")
+st.title("📊 Batch Prediction & Global Insights")
 
 # Download template button
 EXPECTED_COLUMNS = list(numerical_features_dict.keys()) + list(categorical_features_dict.keys())
@@ -40,65 +40,71 @@ if file:
         if col not in df_uploaded.columns:
             df_uploaded[col] = categorical_features_dict[col][0]
 
-    # --- FIX: FORCE NUMERIC CONVERSION FOR EXCEL FORMATTING QUIRKS ---
-    # We explicitly convert all expected numeric columns to real numerical data types
-    # to bypass the validation 'Column must be numeric' errors caused by spreadsheet objects.
+    # --- FORCE NUMERIC CONVERSION FOR EXCEL FORMATTING QUIRKS ---
     for col in numerical_features_dict.keys():
         if col in df_uploaded.columns:
             df_uploaded[col] = pd.to_numeric(df_uploaded[col], errors='coerce')
 
-    df_processed_for_validation = df_uploaded[EXPECTED_COLUMNS]
-    errors = validate_dataframe(df_processed_for_validation)
+    # Basic dropna handling to clear trailing empty Excel lines
+    df_uploaded = df_uploaded.dropna(how='all')
 
-    if errors:
-        for err in errors:
-            st.error(err)
+    if len(df_uploaded) == 0:
+        st.error("⚠️ The uploaded file contains no data rows. Please check the file contents.")
     else:
-        st.write("### Data Preview (Top 5 Rows)")
-        st.dataframe(df_processed_for_validation.head())
+        df_processed_for_validation = df_uploaded[EXPECTED_COLUMNS]
+        errors = validate_dataframe(df_processed_for_validation)
 
-        if st.button("Run Batch Prediction"):
-            try:
-                # 1. Run Prediction and SHAP calculation
-                result_df, shap_values, X_transformed_for_shap = predict_batch(df_processed_for_validation.copy())
+        if errors:
+            for err in errors:
+                st.error(err)
+        else:
+            st.write("### Data Preview (Top 5 Rows)")
+            st.dataframe(df_processed_for_validation.head())
 
-                # 2. ATTACH SHAP VALUES FOR DATABASE
-                # We convert the entire matrix of SHAP values into a list of lists
-                # result_df['shap_values'] will now hold the explanation for every row
-                result_df['shap_values'] = [sv.tolist() for sv in shap_values]
-
-                # 3. Save to Database (Handles result, SHAP, and automatic timestamp)
-                if save_to_db(result_df):
-                    st.success(f"Successfully processed {len(result_df)} records and logged to Database!")
-
-                    # Display results (excluding the messy shap_values column for the UI)
-                    st.write("### Prediction Results")
-                    st.dataframe(result_df.drop(columns=['shap_values']).head())
-
-                    st.download_button(
-                        "Download Results CSV",
-                        result_df.drop(columns=['shap_values']).to_csv(index=False).encode('utf-8'),
-                        "predictions.csv",
-                        "text/csv"
-                    )
-
-                    # 4. Global Insights Visualization
-                    st.subheader("Global Feature Importance")
-                    st.info("This chart shows which factors contributed most to the overall attrition risk across this entire batch.")
-
-                    with st.expander("View SHAP Summary Plot", expanded=True):
-                        fig, ax = plt.subplots(figsize=(10, 6))
-                        # Summary plot shows the magnitude of feature importance
-                        shap.summary_plot(
-                            shap_values,
-                            X_transformed_for_shap,
-                            feature_names=feature_names_for_shap,
-                            plot_type="bar",
-                            show=False
-                        )
-                        st.pyplot(fig)
-
+            # FIX: Bind prediction runner explicitly inside an active records verification block
+            if st.button("Run Batch Prediction"):
+                if df_processed_for_validation.empty or len(df_processed_for_validation) == 0:
+                    st.error("⚠️ The prediction dataset is empty. Please re-upload your file.")
                 else:
-                    st.error("Failed to save batch predictions to database.")
-            except Exception as e:
-                st.error(f"Prediction Error: {e}")
+                    try:
+                        with st.spinner("Processing calculations and mapping SHAP explainability matrices..."):
+                            # 1. Run Prediction and SHAP calculation
+                            result_df, shap_values, X_transformed_for_shap = predict_batch(df_processed_for_validation.copy())
+
+                            # 2. ATTACH SHAP VALUES FOR DATABASE
+                            result_df['shap_values'] = [sv.tolist() for sv in shap_values]
+
+                            # 3. Save to Database
+                            if save_to_db(result_df):
+                                st.success(f"✅ Successfully processed {len(result_df)} records and logged to Database!")
+
+                                # Display results
+                                st.write("### Prediction Results")
+                                st.dataframe(result_df.drop(columns=['shap_values']).head())
+
+                                st.download_button(
+                                    "Download Results CSV",
+                                    result_df.drop(columns=['shap_values']).to_csv(index=False).encode('utf-8'),
+                                    "predictions.csv",
+                                    "text/csv"
+                                )
+
+                                # 4. Global Insights Visualization
+                                st.subheader("Global Feature Importance")
+                                st.info("This chart shows which factors contributed most to the overall attrition risk across this entire batch.")
+
+                                with st.expander("View SHAP Summary Plot", expanded=True):
+                                    fig, ax = plt.subplots(figsize=(10, 6))
+                                    shap.summary_plot(
+                                        shap_values,
+                                        X_transformed_for_shap,
+                                        feature_names=feature_names_for_shap,
+                                        plot_type="bar",
+                                        show=False
+                                    )
+                                    st.pyplot(fig)
+
+                            else:
+                                st.error("Failed to save batch predictions to database.")
+                    except Exception as e:
+                        st.error(f"Prediction Error: {e}")
