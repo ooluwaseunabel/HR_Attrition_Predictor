@@ -9,7 +9,7 @@ def validate_dataframe(df):
     Returns a list of error strings. If empty, the validation passed.
     """
     errors = []
-    
+
     # 1. Check for expected columns
     expected_cols = list(numerical_features_dict.keys()) + list(categorical_features_dict.keys())
     missing_cols = [col for col in expected_cols if col not in df.columns]
@@ -23,7 +23,7 @@ def validate_dataframe(df):
         if not pd.api.types.is_numeric_dtype(df[col]):
             errors.append(f"Column '{col}' must be numeric.")
             continue
-            
+
         # Check range values
         out_of_bounds = df[(df[col] < min_val) | (df[col] > max_val)]
         if not out_of_bounds.empty:

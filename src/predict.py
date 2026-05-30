@@ -59,7 +59,7 @@ def load_model_and_explainer():
         return None, None, None
 
     files = [f for f in os.listdir(model_dir_full_path) if f.endswith('.pkl')]
-    if not files: 
+    if not files:
         print(f"CRITICAL: No .pkl files found in {model_dir_full_path}")
         return None, None, None
 
@@ -94,28 +94,28 @@ model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explaine
 
 def make_prediction(df_input):
     global model_pipeline, shap_explainer, feature_names_for_shap
-    
+
     if model_pipeline is None:
         model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explainer()
-        
+
     if model_pipeline is None:
         raise ValueError("Model not loaded correctly. Please verify your 'models/' folder path.")
-        
+
     X_processed = preprocess_data(df_input)
     probabilities = model_pipeline.predict_proba(X_processed)[:, 1]
     predictions = (probabilities > 0.5).astype(int)
 
     X_transformed = model_pipeline.named_steps['preprocessor'].transform(X_processed)
     shap_values = shap_explainer.shap_values(X_transformed)
-    
+
     return probabilities, predictions, shap_values
 
 def predict_batch(df_input):
     global model_pipeline, shap_explainer, feature_names_for_shap
-    
+
     if model_pipeline is None:
         model_pipeline, shap_explainer, feature_names_for_shap = load_model_and_explainer()
-        
+
     if model_pipeline is None:
         raise ValueError("Model not loaded correctly. Please verify your 'models/' folder path.")
 

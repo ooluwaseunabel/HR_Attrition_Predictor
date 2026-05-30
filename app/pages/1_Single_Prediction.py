@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import sys
 import os
+import shap
+import matplotlib.pyplot as plt
 
 # --- SYSTEM PATH FIX ---
 current_dir = os.path.dirname(__file__)
@@ -10,13 +12,13 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 # -----------------------
 
-from src.predict import make_prediction, numerical_features_dict, categorical_features_dict
+from src.predict import make_prediction, numerical_features_dict, categorical_features_dict, feature_names_for_shap, shap_explainer
 from src.db import save_to_db
 
 st.set_page_config(page_title="Single Prediction", layout="wide")
 st.title("Single Employee Attrition Prediction")
 
-st.markdown("Input employee parameters below to calculate their real-time attrition risk score.")
+st.markdown("Input employee parameters below to calculate their real-time attrition risk score and feature importance breakdown.")
 
 # Group inputs using Streamlit tabs for cleaner layout
 tab1, tab2, tab3 = st.tabs(["Personal Metrics", "Job Details", "Satisfaction & History"])
@@ -29,7 +31,6 @@ with tab1:
         input_data['Age'] = st.slider("Age", *numerical_features_dict['Age'])
         input_data['Gender'] = st.selectbox("Gender", categorical_features_dict['Gender'])
         input_data['MaritalStatus'] = st.selectbox("Marital Status", categorical_features_dict['MaritalStatus'])
-        # --- FIXED: Added missing BusinessTravel input ---
         input_data['BusinessTravel'] = st.selectbox("Business Travel Frequency", categorical_features_dict['BusinessTravel'])
     with col2:
         input_data['DistanceFromHome'] = st.slider("Distance From Home (miles)", *numerical_features_dict['DistanceFromHome'])
@@ -48,7 +49,6 @@ with tab2:
         input_data['HourlyRate'] = st.slider("Hourly Rate ($)", *numerical_features_dict['HourlyRate'])
         input_data['MonthlyRate'] = st.slider("Monthly Rate ($)", *numerical_features_dict['MonthlyRate'])
         input_data['OverTime'] = st.selectbox("Overtime Status", categorical_features_dict['OverTime'])
-        # --- FIXED: Added missing PercentSalaryHike input ---
         input_data['PercentSalaryHike'] = st.slider("Percent Salary Hike (%)", *numerical_features_dict['PercentSalaryHike'])
 
 with tab3:
@@ -70,6 +70,8 @@ with tab3:
 if st.button("Calculate Risk Profile"):
     try:
         df_input = pd.DataFrame([input_data])
+        
+        # 1. Run prediction and extract SHAP metrics
         probabilities, predictions, shap_values = make_prediction(df_input)
         
         prob_val = probabilities[0]
@@ -81,7 +83,7 @@ if st.button("Calculate Risk Profile"):
         else:
             st.success(f"**Low Risk of Attrition:** The system estimates a **{prob_val:.2%}** probability of departure.")
             
-        # Format metrics record payload for database entry
+        # 2. Format metrics record payload for database entry
         df_db = df_input.copy()
         df_db['Attrition_Probability'] = prob_val
         df_db['prediction'] = int(pred_val)
@@ -91,6 +93,30 @@ if st.button("Calculate Risk Profile"):
             st.caption("Prediction metrics cleanly synchronized to remote storage logs.")
         else:
             st.caption("Database communication logging failure.")
+            
+        # 3. Localized SHAP Explainability Visualization
+        st.write("---")
+        st.subheader("Individual Attrition Driver Analysis")
+        st.info("This waterfall plot shows how much each distinct parameter shifted this specific employee's prediction away from the baseline model average.")
+
+        with st.expander("View Detailed SHAP Breakdown Plot", expanded=True):
+            # Extract transformed feature states directly via the pipeline preprocessor
+            from src.predict import model_pipeline
+            X_transformed = model_pipeline.named_steps['preprocessor'].transform(df_input)
+            
+            shap_values_single = shap_values[0]
+            X_single = X_transformed[0]
+
+            fig, ax = plt.subplots(figsize=(10, 6))
+            exp = shap.Explanation(
+                values=shap_values_single,
+                base_values=shap_explainer.expected_value,
+                data=X_single,
+                feature_names=feature_names_for_shap
+            )
+            shap.waterfall_plot(exp, show=False)
+            plt.tight_layout()
+            st.pyplot(fig)
             
     except Exception as e:
         st.error(f"Prediction Pipeline Error: {e}")
